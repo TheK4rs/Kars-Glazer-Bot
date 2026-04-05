@@ -128,6 +128,13 @@ async def status(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     await bot.tree.sync()
+    await bot.change_presence(
+        status=discord.Status.dnd,
+        activity=discord.Activity(
+            type=discord.ActivityType.playing,
+            name="Sorry but I'm busy worshiping Kars..."
+        )
+    )
     print(f"Kars' Glazer online as {bot.user}")
     bot.loop.create_task(entity_loop())
 
@@ -201,8 +208,8 @@ async def on_message(message):
     # ================== SACRED NAME LOGIC ==================
     if "kars" in content and message.author.id != KARS_ID:
         await message.channel.send(
-            "Mortal! How dare you utter the Sacred Name so casually!\n"
-            "Summon me properly next time.\n"
+            "Mortal! How Dare You Utter The Sacred Name So Casually!\n" 
+            "Summon His Grace Properly Next Time.\n" 
             f"|| {KARS} ||"
         )
         return
